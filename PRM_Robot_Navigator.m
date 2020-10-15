@@ -2,7 +2,8 @@ load('Maps.mat')
 
 mapWaypoints = [5 36; 23 36; 35 36; 46 36; 5 28; 5 15; 24 16; 47 28; 45 16; 4 3];
 
-map = occupancyMap(complexMap);
+simMap = binaryOccupancyMap(complexMap);
+lidarMap = imageToOccupancy(complexMap,5);
 
 loopPts = mapWaypoints([10 6 5 8 9 10],:);
 
@@ -29,16 +30,39 @@ slamObj = lidarSLAM(slamResolution, slamMaxRange);
 % Robot Controller
 robot = bicycleKinematics("MaxSteeringAngle",pi/4);
 
+% PRM
+mapInflated = copy(simMap);
+inflate(mapInflated, trackWidth/2);
+prm = mobileRobotPRM(mapInflated, 2000);
+prm.ConnectionDistance = 10;
+
+% Add obstacle
+
 
 %% Driving
 for i = 2:size(loopPts, 1)
     % Set Waypoint
     startLocation = loopPts(i-1,:);
     endLocation = loopPts(i,:);
-    
     % PRM
-    path = pathFinder(map,trackWidth,startLocation, endLocation);
+    path = findpath(prm,startLocation,endLocation);
+    
+    while isempty(path)
+        % No feasible path found yet, increase the number of nodes
+        prm.NumNodes = prm.NumNodes + 10;
 
+        % Use the |update| function to re-create the PRM roadmap with the changed
+        % attribute
+        update(prm);
+
+        % Search for a feasible path with the updated PRM
+        path = findpath(prm, startLocation, endLocation);
+    end
+    
+    figure(1)
+    show(prm)
+    
+    
     % Robot Controller
     controller = controllerPurePursuit('Waypoints',path,'DesiredLinearVelocity',2,'LookaheadDistance', 2);
     robotInitialLocation = path(1,:);
@@ -56,11 +80,11 @@ for i = 2:size(loopPts, 1)
 
     while( distanceToGoal > goalRadius )
         angles = setAngles+currentPose(3);
-        [scan,lidarPts] = simLidar(setAngles,map,currentPose,lidarMaxRange);
+        [scan,lidarPts] = simLidar(setAngles,simMap,currentPose,lidarMaxRange);
         
         
         %addScan(slamObj, scan);
-        insertRay(map,currentPose,scan,lidarMaxRange);
+        insertRay(lidarMap,currentPose,scan,lidarMaxRange);
         
         scanOld = scan;
         calcDeltaPose = matchScans(scan, scanOld)';
@@ -81,10 +105,10 @@ for i = 2:size(loopPts, 1)
         distanceToGoal = norm(currentPose(1:2) - robotGoal(:));
 
 
-        plotRobot(map,path,frameSize,currentPose,calcPose,lidarPts,lidarMaxRange,angles);
+        plotRobot(simMap,path,frameSize,currentPose,calcPose,lidarPts,lidarMaxRange,angles);
         
         figure(3)
-        show(map);
+        show(lidarMap)
     end
 end    
 
