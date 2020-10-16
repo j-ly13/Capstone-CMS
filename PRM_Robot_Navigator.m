@@ -9,32 +9,30 @@ loopPts = mapWaypoints([10 6 5 8 9 10],:);
 
 % Lidar Parameters
 lidarMaxRange = 20;
-setAngles = -pi:pi/50:pi;
+setAngles = -pi:pi/200:pi;
 slamMaxRange = 15;
 slamResolution = 10;
 
 % Robot Parameters
 trackWidth = 1.75;
-initialOrientation = 0;
+initialOrientation = pi/2;
 currentPose(3) = initialOrientation;
 
 % Simulation Parameters
 frameSize = trackWidth/0.8;
-fps = 15;
-goalRadius = 0.5;
-
-
-% SLAM
-slamObj = lidarSLAM(slamResolution, slamMaxRange);
+fps = 10;
+goalRadius = 0.75;
 
 % Robot Controller
-robot = bicycleKinematics("MaxSteeringAngle",pi/4);
+robot = bicycleKinematics("MaxSteeringAngle",pi/3);
 
 % PRM
 mapInflated = copy(simMap);
 inflate(mapInflated, trackWidth/2);
-prm = mobileRobotPRM(mapInflated, 2000);
+prm = mobileRobotPRM(mapInflated, 500);
 prm.ConnectionDistance = 10;
+
+
 
 % Add obstacle
 
@@ -65,14 +63,19 @@ for i = 2:size(loopPts, 1)
     
     % Robot Controller
     controller = controllerPurePursuit('Waypoints',path,'DesiredLinearVelocity',2,'LookaheadDistance', 2);
-    robotInitialLocation = path(1,:);
     robotGoal = path(end,:);
 
-    currentPose = [robotInitialLocation currentPose(3)]';
+    initialPose = [path(1,:) currentPose(3)]';
+    currentPose = initialPose;
     calcPose = currentPose;
-
-    distanceToGoal = norm(robotInitialLocation - robotGoal);
-
+    distanceToGoal = norm(calcPose(1:2) - robotGoal);
+    
+    [scan,lidarPts] = simLidar(setAngles,simMap,currentPose,lidarMaxRange);
+    
+    
+    % SLAM
+    slamObj = lidarSLAM(slamResolution, slamMaxRange);
+    
     % Initialize the figure
     figure(2)
     xlim([0 52])
@@ -80,35 +83,38 @@ for i = 2:size(loopPts, 1)
 
     while( distanceToGoal > goalRadius )
         angles = setAngles+currentPose(3);
+        scanOld = scan;
         [scan,lidarPts] = simLidar(setAngles,simMap,currentPose,lidarMaxRange);
         
-        
-        %addScan(slamObj, scan);
+        addScan(slamObj, scan);
         insertRay(lidarMap,currentPose,scan,lidarMaxRange);
         
-        scanOld = scan;
-        calcDeltaPose = matchScans(scan, scanOld)';
-        calcPose = calcPose + calcDeltaPose;
-
+        [scans,poses] = scansAndPoses(slamObj);
+        calcPose = ( poses( size(poses,1) ,:) )';
+        calcPose(1:2) = (calcPose(1:2)'*[cos(-initialPose(3)) -sin(-initialPose(3)); sin(-initialPose(3)) cos(-initialPose(3))])'+initialPose(1:2);
+        calcPose(3) = wrapToPi(calcPose(3) + initialPose(3));
+        
         %% Robot Controller
         
         % Compute the controller outputs, i.e., the inputs to the robot
-        [v, omega] = controller(currentPose);
+        [v, omega] = controller(calcPose);
 
         % Get the robot's velocity using controller inputs
         vel = derivative(robot, currentPose, [v omega]);
 
         % Update the current pose
         currentPose = currentPose + vel/fps;
+        currentPose(3) = wrapToPi(currentPose(3));
+        
+        % Re-compute the distance to the goal
+        distanceToGoal = norm(calcPose(1:2) - robotGoal);
 
-        % Re-compute the distance to the goa
-        distanceToGoal = norm(currentPose(1:2) - robotGoal(:));
 
-
-        plotRobot(simMap,path,frameSize,currentPose,calcPose,lidarPts,lidarMaxRange,angles);
+        plotRobot(lidarMap,path,frameSize,currentPose,calcPose,lidarPts,lidarMaxRange,angles);
         
         figure(3)
-        show(lidarMap)
+        %show(lidarMap)
+        show(slamObj)
     end
 end    
 

@@ -23,9 +23,9 @@ function plotRobot(map,path,frameSize,currentPose,calcPose,lidarPts,lidarMaxRang
     plotTransforms(plotTrVec', plotRot, 'MeshColor', 'red', 'MeshFilePath', 'groundvehicle.stl', 'Parent', gca, "View","2D", "FrameSize", frameSize);
 
     % Plot the path of the calculated movement
-    %plotTrVec = [calcPose(1:2); 0];
-    %plotRot = axang2quat([0 0 1 calcPose(3)]);
-    %plotTransforms(plotTrVec', plotRot, 'MeshColor', 'green', 'MeshFilePath', 'groundvehicle.stl', 'Parent', gca, "View","2D", "FrameSize", frameSize);
+    plotTrVec = [calcPose(1:2); 0];
+    plotRot = axang2quat([0 0 1 calcPose(3)]);
+    plotTransforms(plotTrVec', plotRot, 'MeshColor', 'green', 'MeshFilePath', 'groundvehicle.stl', 'Parent', gca, "View","2D", "FrameSize", frameSize);
     
     drawnow;
 end
