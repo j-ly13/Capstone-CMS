@@ -24,7 +24,7 @@ fps = 10;
 goalRadius = 0.75;
 
 % Robot Controller
-robot = bicycleKinematics("MaxSteeringAngle",pi/3);
+robot = bicycleKinematics("MaxSteeringAngle",pi/4);
 
 % PRM
 mapInflated = copy(simMap);
@@ -62,13 +62,13 @@ for i = 2:size(loopPts, 1)
     
     
     % Robot Controller
-    controller = controllerPurePursuit('Waypoints',path,'DesiredLinearVelocity',2,'LookaheadDistance', 2);
+    controller = controllerPurePursuit('Waypoints',path,'DesiredLinearVelocity',2,'LookaheadDistance', 2.5);
     robotGoal = path(end,:);
 
     initialPose = [path(1,:) currentPose(3)]';
     currentPose = initialPose;
     calcPose = currentPose;
-    distanceToGoal = norm(calcPose(1:2) - robotGoal);
+    distanceToGoal = norm(calcPose(1:2) - robotGoal(:));
     
     [scan,lidarPts] = simLidar(setAngles,simMap,currentPose,lidarMaxRange);
     
@@ -107,14 +107,14 @@ for i = 2:size(loopPts, 1)
         currentPose(3) = wrapToPi(currentPose(3));
         
         % Re-compute the distance to the goal
-        distanceToGoal = norm(calcPose(1:2) - robotGoal);
+        distanceToGoal = norm(calcPose(1:2) - robotGoal(:));
 
 
         plotRobot(lidarMap,path,frameSize,currentPose,calcPose,lidarPts,lidarMaxRange,angles);
         
-        figure(3)
-        %show(lidarMap)
-        show(slamObj)
+        %figure(3)
+        %show(slamObj) % Show the lidarSLAM object. As more scans are
+        %added, this will become more intensive
     end
 end    
 
